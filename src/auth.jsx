@@ -75,4 +75,3 @@ export function AuthProvider({ children }) {
     </AuthCtx.Provider>
   );
 }
-
