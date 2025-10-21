@@ -1,4 +1,24 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+function resolveApiBaseUrl() {
+  const fromEnv = import.meta.env.VITE_API_BASE_URL;
+  if (typeof fromEnv === "string") {
+    const trimmed = fromEnv.trim();
+    if (trimmed) {
+      return trimmed.replace(/\/$/, "");
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    return "http://localhost:4000";
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 function buildUrl(path) {
   if (!path) return API_BASE_URL;
@@ -25,47 +45,3 @@ async function apiFetch(path, { headers = {}, body, ...options } = {}) {
   const isJson = contentType.includes("application/json");
   const payload = isJson ? await response.json().catch(() => null) : await response.text();
 
-  if (!response.ok) {
-    const message =
-      (payload && typeof payload === "object" && (payload.message || payload.error)) ||
-      (typeof payload === "string" && payload) ||
-      response.statusText ||
-      "Error al comunicarse con la API";
-    throw new Error(message);
-  }
-
-  return payload;
-}
-
-export async function registerUser(data) {
-  return apiFetch("/auth/register", { method: "POST", body: data });
-}
-
-export async function loginUser(data) {
-  return apiFetch("/auth/login", { method: "POST", body: data });
-}
-
-export async function upsertArtistProfile(userId, profile, token) {
-  if (!userId) throw new Error("Falta el identificador del usuario.");
-  return apiFetch(`/artists/${userId}`, {
-    method: "PUT",
-    body: profile,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
-}
-
-export async function getArtistProfile(userId, token) {
-  if (!userId) throw new Error("Falta el identificador del usuario.");
-  return apiFetch(`/artists/${userId}`, {
-    method: "GET",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
-}
-
-export async function getCurrentUser(token) {
-  if (!token) throw new Error("Falta el token de autenticación.");
-  return apiFetch("/auth/me", {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-}

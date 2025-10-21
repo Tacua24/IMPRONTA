@@ -13,7 +13,7 @@ function readStoredAuth() {
   const raw = localStorage.getItem(AUTH_STORAGE_KEY);
   if (!raw) return { token: null, user: null };
 
-try {
+  try {
     const parsed = JSON.parse(raw);
     return {
       token: typeof parsed.token === "string" ? parsed.token : null,
@@ -31,7 +31,7 @@ function persistAuth(token, user) {
     return;
   }
 
-const payload = { token };
+  const payload = { token };
   if (user) payload.user = user;
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(payload));
 }
@@ -68,14 +68,14 @@ function persistRole(email, role) {
     }
   }
 
-map[normalizedEmail] = role;
+  map[normalizedEmail] = role;
   localStorage.setItem(ROLE_INDEX_KEY, JSON.stringify(map));
 }
 
-function normalizeUser(apiUser, role = "usuario", fallbackName = "") {
+function normalizeUser(apiUser, role = "visitor", fallbackName = "") {
   if (!apiUser) return null;
-  const safeRole = role || "usuario";
-  const resolvedName = (apiUser.name ?? fallbackName ?? "").trim();
+  const safeRole = role || "visitor";
+  const resolvedName = (apiUser.full_name ?? apiUser.name ?? fallbackName ?? "").trim();
 
   return {
     id: apiUser.id,
@@ -121,7 +121,7 @@ export function AuthProvider({ children }) {
           throw new Error("La API no devolvió información de usuario.");
         }
 
-        const storedRole = readRole(apiUser.email) ?? user?.role ?? "usuario";
+        const storedRole = readRole(apiUser.email) ?? user?.role ?? "visitor";
         const normalized = normalizeUser(apiUser, storedRole, user?.full_name);
         setUser(normalized);
         persistAuth(token, normalized);
@@ -140,18 +140,21 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
     };
-    }, [token]);
+  }, [token]);
 
   const register = useMemo(() => {
-    return async function registerUserWithApi({ nombre, email, password, rol = "usuario" }) {
+    return async function registerUserWithApi({ full_name, email, password, role = "visitor" }) {
       const trimmedEmail = typeof email === "string" ? email.trim() : "";
       const trimmedPassword = typeof password === "string" ? password : "";
-      const trimmedName = typeof nombre === "string" ? nombre.trim() : "";
+      const trimmedFullName = typeof full_name === "string" ? full_name.trim() : "";
+      const normalizedRole = ["visitor", "artist", "admin"].includes(role) ? role : "visitor";
 
       const payload = {
         email: trimmedEmail,
         password: trimmedPassword,
-        name: trimmedName || null,
+        full_name: trimmedFullName || null,
+        name: trimmedFullName || null,
+        role: normalizedRole,
       };
 
       const response = await registerUser(payload);
@@ -160,8 +163,8 @@ export function AuthProvider({ children }) {
         throw new Error("Registro incompleto: falta token o datos de usuario.");
       }
 
-      persistRole(trimmedEmail, rol);
-      const normalized = normalizeUser(apiUser, rol, nombre);
+      persistRole(trimmedEmail, normalizedRole);
+      const normalized = normalizeUser(apiUser, normalizedRole, full_name);
       setToken(response.token);
       setUser(normalized);
       persistAuth(response.token, normalized);
@@ -178,7 +181,7 @@ export function AuthProvider({ children }) {
         throw new Error("Inicio de sesión incompleto: falta token o datos de usuario.");
       }
 
-      const role = readRole(trimmedEmail) ?? "usuario";
+      const role = readRole(trimmedEmail) ?? "visitor";
       const normalized = normalizeUser(apiUser, role);
       setToken(response.token);
       setUser(normalized);
@@ -225,7 +228,8 @@ export function AuthProvider({ children }) {
       return raw ? JSON.parse(raw) : null;
     };
   }, []);
-    const value = useMemo(
+
+  const value = useMemo(
     () => ({
       user,
       token,
